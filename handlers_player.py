@@ -210,12 +210,13 @@ async def cmd_done_filling(message: Message, state: FSMContext) -> None:
 async def cb_filldone(callback: CallbackQuery) -> None:
     _, player_id_s, answer = callback.data.split(":")
     player_id = int(player_id_s)
-    if answer == "no":
-        await callback.message.edit_text("Ок, продолжай заполнение.", reply_markup=None)
-        await callback.answer()
-        return
     player = await db.get_player_by_id(player_id)
     game = await db.get_game(player["game_id"])
+    if answer == "no":
+        await callback.message.edit_text("Ок, продолжай заполнение.", reply_markup=None)
+        await ask_next_slot(callback.message, player_id, game)
+        await callback.answer()
+        return
     for idx in range(player["fill_index"], game["size"]):
         await db.set_slot_text(player_id, idx, "—")
     await db.set_fill_index(player_id, game["size"])
