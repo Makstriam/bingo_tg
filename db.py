@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS games (
     win_line INTEGER NOT NULL DEFAULT 0,
     anonymous INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
+    mode TEXT NOT NULL DEFAULT 'manual',
+    word_pool TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -72,6 +74,14 @@ async def init_db(path: str = DB_PATH) -> None:
         cols = [row[1] for row in await cur.fetchall()]
         if "notify_muted" not in cols:
             await db.execute("ALTER TABLE players ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
+
+        cur = await db.execute("PRAGMA table_info(games)")
+        game_cols = [row[1] for row in await cur.fetchall()]
+        if "mode" not in game_cols:
+            await db.execute("ALTER TABLE games ADD COLUMN mode TEXT NOT NULL DEFAULT 'manual'")
+        if "word_pool" not in game_cols:
+            await db.execute("ALTER TABLE games ADD COLUMN word_pool TEXT")
+
         await db.commit()
 
 
@@ -85,12 +95,25 @@ async def create_game(
     win_full: bool,
     win_line: bool,
     anonymous: bool,
+    mode: str = "manual",
+    word_pool: Optional[str] = None,
 ) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
-            "INSERT INTO games (title, organizer_id, organizer_name, size, win_full, win_line, anonymous, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)",
-            (title, organizer_id, organizer_name, size, int(win_full), int(win_line), int(anonymous), _now()),
+            "INSERT INTO games (title, organizer_id, organizer_name, size, win_full, win_line, anonymous, "
+            "status, mode, word_pool, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)",
+            (
+                title,
+                organizer_id,
+                organizer_name,
+                size,
+                int(win_full),
+                int(win_line),
+                int(anonymous),
+                mode,
+                word_pool,
+                _now(),
+            ),
         )
         await db.commit()
         return cur.lastrowid

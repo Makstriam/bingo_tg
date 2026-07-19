@@ -8,6 +8,24 @@ def size_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
+def mode_choice_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🙋 Каждый сам", callback_data="newgame:mode:manual")],
+            [InlineKeyboardButton(text="🎲 Случайные из списка", callback_data="newgame:mode:random")],
+        ]
+    )
+
+
+def pool_choice_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Пример списка", callback_data="newgame:poolsample")],
+            [InlineKeyboardButton(text="✅ Стандартный список (100 шт.)", callback_data="newgame:pooldefault")],
+        ]
+    )
+
+
 def yes_no_keyboard(action: str, payload: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -104,8 +122,10 @@ def manage_game_keyboard(game, has_own_card: bool = False) -> InlineKeyboardMark
     elif game["status"] == "active":
         rows.append([InlineKeyboardButton(text="🔗 Ссылка-приглашение", callback_data=f"game:link:{game['id']}")])
         rows.append([InlineKeyboardButton(text="🏁 Таблица лидеров", callback_data=f"game:leaderboard:{game['id']}")])
+        rows.append([InlineKeyboardButton(text="📋 Словарь", callback_data=f"game:dict:{game['id']}")])
         rows.append([InlineKeyboardButton(text="⛔ Завершить игру", callback_data=f"game:end:{game['id']}")])
     else:
         rows.append([InlineKeyboardButton(text="🏁 Итоги", callback_data=f"game:leaderboard:{game['id']}")])
+        rows.append([InlineKeyboardButton(text="📋 Словарь", callback_data=f"game:dict:{game['id']}")])
         rows.append([InlineKeyboardButton(text="🗑 Удалить игру насовсем", callback_data=f"game:delete:{game['id']}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

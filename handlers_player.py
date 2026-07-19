@@ -1,4 +1,5 @@
 import logging
+import random
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, StateFilter
@@ -76,6 +77,34 @@ async def begin_card_filling(message_target: Message, state: FSMContext, game_id
     else:
         player_id = await db.add_player(game_id, user.id, user.full_name, game["size"])
     await db.set_current_game_id(user.id, game_id)
+
+    if game["mode"] == "random":
+        if not existing or not existing["confirmed"]:
+            pool = [line for line in (game["word_pool"] or "").splitlines() if line.strip()]
+            size = game["size"]
+            chosen = random.sample(pool, size) if len(pool) >= size else random.choices(pool, k=size)
+            for idx, text in enumerate(chosen):
+                await db.set_slot_text(player_id, idx, text)
+            await db.set_fill_index(player_id, size)
+            await db.confirm_player(player_id)
+        slots = await db.get_slots(player_id)
+        await send_card_image(
+            message_target,
+            game,
+            slots,
+            owner_view=True,
+            caption=f"Тебе досталась случайная карточка в игре «{game['title']}»!\n"
+            "⏳ Жди, когда организатор начнёт игру.",
+            reply_markup=await build_menu(user.id),
+        )
+        if game["organizer_id"] != user.id:
+            await broadcast(
+                message_target.bot,
+                [game["organizer_id"]],
+                f"✅ {user.full_name} присоединился(ась) и готов(а) в игре «{game['title']}».",
+            )
+        return player_id
+
     await state.set_state(CardFilling.filling)
     await state.update_data(game_id=game_id, player_id=player_id)
     await ask_next_slot(message_target, player_id, game)
@@ -104,7 +133,11 @@ async def resolve_current_game(message: Message, silent_if_empty: bool = False):
 
 
 async def resolve_draft_game_for_edit(message: Message, silent_if_empty: bool = False):
-    games = [g for g in await db.get_player_games_for_user(message.from_user.id) if g["status"] == "draft"]
+    games = [
+        g
+        for g in await db.get_player_games_for_user(message.from_user.id)
+        if g["status"] == "draft" and g["mode"] == "manual"
+    ]
     if not games:
         if not silent_if_empty:
             await message.answer("Нет игр в статусе подготовки, где можно редактировать карточку.")
@@ -183,9 +216,12 @@ async def cb_join(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text("Хорошо, ты не участвуешь в этой игре.", reply_markup=None)
         await callback.answer()
         return
-    await callback.message.edit_text(
-        f"Ты в игре «{game['title']}»! Заполним карточку из {game['size']} слотов.", reply_markup=None
+    intro = (
+        f"Ты в игре «{game['title']}»! Заполним карточку из {game['size']} слотов."
+        if game["mode"] == "manual"
+        else f"Ты в игре «{game['title']}»! Сейчас соберу тебе случайную карточку."
     )
+    await callback.message.edit_text(intro, reply_markup=None)
     await begin_card_filling(callback.message, state, game_id, game, callback.from_user)
     await callback.answer()
 

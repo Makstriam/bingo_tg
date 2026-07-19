@@ -5,6 +5,8 @@ class GameCreation(StatesGroup):
     title = State()
     size = State()
     anonymous = State()
+    mode = State()
+    pool = State()
 
 
 class CardFilling(StatesGroup):
