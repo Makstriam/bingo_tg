@@ -392,7 +392,14 @@ async def cmd_undo(message: Message) -> None:
         return
     await db.reopen_slot(player["id"], idx)
     coord = game_logic.idx_to_coord(idx, game["size"])
-    await message.answer(f"Отметка клетки {coord} отменена.")
+    slots = await db.get_slots(player["id"])
+    await send_card_image(
+        message,
+        game,
+        slots,
+        owner_view=True,
+        caption=f"Отметка клетки {coord} отменена.",
+    )
 
 
 @router.message(F.text == BTN_CARD)
