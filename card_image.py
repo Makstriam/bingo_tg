@@ -60,35 +60,74 @@ def _font(size: int) -> ImageFont.ImageFont:
     return ImageFont.load_default(size=size)
 
 
-def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int, max_lines: int) -> list[str]:
+MAX_FONT_SIZE = 30
+MIN_FONT_SIZE = 9
+
+
+def _wrap_lines(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
     words = text.split()
+    if not words:
+        return [""]
     lines: list[str] = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if draw.textlength(candidate, font=font) <= max_width or not current:
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if draw.textlength(candidate, font=font) <= max_width:
             current = candidate
         else:
             lines.append(current)
             current = word
-            if len(lines) >= max_lines:
-                current = ""
-                break
-    if current:
-        lines.append(current)
-
-    truncated = len(lines) > max_lines or (not current and len(" ".join(lines)) < len(text))
-    lines = lines[:max_lines]
-    if truncated and lines:
-        last = lines[-1]
-        while draw.textlength(last + "…", font=font) > max_width and len(last) > 1:
-            last = last[:-1]
-        lines[-1] = last + "…"
+    lines.append(current)
     return lines
 
 
-def _cell_font_size(n: int) -> int:
-    return max(10, 18 - 2 * (n - 2))
+def _hard_break(draw: ImageDraw.ImageDraw, word: str, font, max_width: int) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for ch in word:
+        candidate = current + ch
+        if draw.textlength(candidate, font=font) <= max_width or not current:
+            current = candidate
+        else:
+            lines.append(current)
+            current = ch
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _ellipsize(draw: ImageDraw.ImageDraw, line: str, font, max_width: int) -> str:
+    while line and draw.textlength(line + "…", font=font) > max_width:
+        line = line[:-1]
+    return (line + "…") if line else "…"
+
+
+def _fit_text(draw: ImageDraw.ImageDraw, text: str, max_width: int, max_height: int):
+    """Pick the largest font size whose wrapped text still fits max_width x max_height."""
+    text = text or "—"
+    for size in range(MAX_FONT_SIZE, MIN_FONT_SIZE - 1, -1):
+        font = _font(size)
+        lines = _wrap_lines(draw, text, font, max_width)
+        line_h = size + 4
+        fits_width = all(draw.textlength(line, font=font) <= max_width for line in lines)
+        if fits_width and len(lines) * line_h <= max_height:
+            return font, lines, line_h
+
+    # Nothing fit even at the minimum size (e.g. one very long word) — force-break and clip.
+    font = _font(MIN_FONT_SIZE)
+    line_h = MIN_FONT_SIZE + 4
+    max_lines = max(1, max_height // line_h)
+    raw_lines = _wrap_lines(draw, text, font, max_width)
+    lines: list[str] = []
+    for line in raw_lines:
+        if draw.textlength(line, font=font) <= max_width:
+            lines.append(line)
+        else:
+            lines.extend(_hard_break(draw, line, font, max_width))
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = _ellipsize(draw, lines[-1], font, max_width)
+    return font, lines, line_h
 
 
 def render_card_image(game, slots, owner_view: bool) -> bytes:
@@ -98,7 +137,6 @@ def render_card_image(game, slots, owner_view: bool) -> bytes:
     draw = ImageDraw.Draw(img)
 
     header_font = _font(18)
-    cell_font = _font(_cell_font_size(n))
 
     draw.rectangle([0, 0, LABEL, LABEL], fill=HEADER_BG, outline=GRID_LINE)
     for col in range(n):
@@ -141,8 +179,7 @@ def render_card_image(game, slots, owner_view: bool) -> bytes:
             continue
 
         text_color = CLOSED_TEXT_COLOR if closed else TEXT_COLOR
-        lines = _wrap_text(draw, slot["text"] or "—", cell_font, CELL - 2 * PAD, max_lines=5)
-        line_h = _cell_font_size(n) + 4
+        cell_font, lines, line_h = _fit_text(draw, slot["text"], CELL - 2 * PAD, CELL - 2 * PAD)
         ty = y0 + CELL / 2 - (len(lines) * line_h) / 2
         for line in lines:
             w = draw.textlength(line, font=cell_font)
