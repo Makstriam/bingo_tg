@@ -1,8 +1,17 @@
+import logging
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
+import card_image
 import db
 import game_logic
 from keyboards import (
@@ -30,7 +39,20 @@ from menu import (
 from states import CardFilling, EditSlot
 from utils import broadcast
 
+logger = logging.getLogger(__name__)
+
 router = Router()
+
+
+async def send_card_image(target: Message, game, slots, owner_view: bool, caption: str, reply_markup=None) -> None:
+    try:
+        photo_bytes = card_image.render_card_image(game, slots, owner_view)
+        photo = BufferedInputFile(photo_bytes, filename="card.png")
+        await target.answer_photo(photo, caption=caption, reply_markup=reply_markup)
+    except Exception:
+        logger.exception("Failed to render card image, falling back to text")
+        text = game_logic.render_card_text(game, slots, owner_view)
+        await target.answer(f"{caption}\n{text}", reply_markup=reply_markup)
 
 
 async def ask_next_slot(message: Message, player_id: int, game) -> None:
@@ -256,11 +278,13 @@ async def cb_card_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     player = await db.get_player_by_id(player_id)
     game = await db.get_game(player["game_id"])
     slots = await db.get_slots(player_id)
-    text = game_logic.render_card_text(game, slots, owner_view=True)
     await callback.message.edit_text("Карточка подтверждена ✅", reply_markup=None)
-    await callback.message.answer(
-        f"Твоя карточка в игре «{game['title']}»\n{text}\n\n"
-        "⏳ Жди, когда организатор начнёт игру.",
+    await send_card_image(
+        callback.message,
+        game,
+        slots,
+        owner_view=True,
+        caption=f"Твоя карточка в игре «{game['title']}»\n⏳ Жди, когда организатор начнёт игру.",
         reply_markup=await build_menu(callback.from_user.id),
     )
     if game["organizer_id"] != callback.from_user.id:
@@ -282,8 +306,14 @@ async def cmd_card(message: Message) -> None:
         await message.answer("Ты не участвуешь в этой игре.")
         return
     slots = await db.get_slots(player["id"])
-    text = game_logic.render_card_text(game, slots, owner_view=True)
-    await message.answer(f"Твоя карточка в игре «{game['title']}»\n{text}")
+    closed = sum(1 for s in slots if s["closed"])
+    await send_card_image(
+        message,
+        game,
+        slots,
+        owner_view=True,
+        caption=f"Твоя карточка в игре «{game['title']}» ({closed}/{game['size']})",
+    )
 
 
 @router.message(Command("players"))
@@ -317,8 +347,14 @@ async def cb_viewcard(callback: CallbackQuery) -> None:
     target = await db.get_player_by_id(int(player_id_s))
     slots = await db.get_slots(target["id"])
     owner_view = target["user_id"] == callback.from_user.id
-    text = game_logic.render_card_text(game, slots, owner_view=owner_view)
-    await callback.message.answer(f"Карточка {target['display_name']}\n{text}")
+    closed = sum(1 for s in slots if s["closed"])
+    await send_card_image(
+        callback.message,
+        game,
+        slots,
+        owner_view=owner_view,
+        caption=f"Карточка {target['display_name']} ({closed}/{game['size']})",
+    )
     await callback.answer()
 
 
@@ -570,10 +606,12 @@ async def on_btn_finish_editing(message: Message, state: FSMContext) -> None:
         return
     player = await db.get_player(game["id"], message.from_user.id)
     slots = await db.get_slots(player["id"])
-    text = game_logic.render_card_text(game, slots, owner_view=True)
-    await message.answer(
-        f"Твоя карточка в игре «{game['title']}»\n{text}\n\n"
-        "⏳ Ожидаем, когда организатор начнёт игру.",
+    await send_card_image(
+        message,
+        game,
+        slots,
+        owner_view=True,
+        caption=f"Твоя карточка в игре «{game['title']}»\n⏳ Ожидаем, когда организатор начнёт игру.",
         reply_markup=await build_menu(message.from_user.id),
     )
 

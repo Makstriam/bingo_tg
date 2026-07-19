@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery, Message
 
 import db
 import game_logic
-from handlers_player import ask_next_slot, begin_card_filling, send_leaderboard
+from handlers_player import ask_next_slot, begin_card_filling, send_card_image, send_leaderboard
 from menu import ALL_BUTTONS, BTN_MYGAMES, BTN_NEWGAME, build_menu
 from keyboards import (
     manage_game_keyboard,
@@ -152,9 +152,12 @@ async def cb_returncard(callback: CallbackQuery, state: FSMContext) -> None:
         await ask_next_slot(callback.message, player["id"], game)
     else:
         slots = await db.get_slots(player["id"])
-        text = game_logic.render_card_text(game, slots, owner_view=True)
-        await callback.message.answer(
-            f"Твоя карточка в игре «{game['title']}»\n{text}\n\n"
+        await send_card_image(
+            callback.message,
+            game,
+            slots,
+            owner_view=True,
+            caption=f"Твоя карточка в игре «{game['title']}»\n"
             "Изменить можно кнопкой «✏️ Редактировать карточку» в меню снизу.",
             reply_markup=await build_menu(callback.from_user.id),
         )
