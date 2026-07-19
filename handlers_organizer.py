@@ -239,6 +239,7 @@ async def cb_confirm_start(callback: CallbackQuery) -> None:
             await db.autofill_and_confirm(p["id"])
 
     await db.set_game_status(game_id, "active")
+    await db.set_current_game_id(callback.from_user.id, game_id)
     await callback.message.edit_text(f"Игра «{game['title']}» началась! 🎉", reply_markup=None)
     players = await db.get_players(game_id)
     await broadcast_with_menu(

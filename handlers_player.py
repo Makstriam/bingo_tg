@@ -75,6 +75,7 @@ async def begin_card_filling(message_target: Message, state: FSMContext, game_id
         player_id = existing["id"]
     else:
         player_id = await db.add_player(game_id, user.id, user.full_name, game["size"])
+    await db.set_current_game_id(user.id, game_id)
     await state.set_state(CardFilling.filling)
     await state.update_data(game_id=game_id, player_id=player_id)
     await ask_next_slot(message_target, player_id, game)
@@ -161,9 +162,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
                 reply_markup=await build_menu(message.from_user.id),
             )
         else:
-            await state.set_state(CardFilling.filling)
-            await state.update_data(game_id=game_id, player_id=existing["id"])
-            await ask_next_slot(message, existing["id"], game)
+            await begin_card_filling(message, state, game_id, game, message.from_user)
         return
     await message.answer(
         f"Присоединиться к игре «{game['title']}» (организатор: {game['organizer_name']})?",
@@ -449,7 +448,14 @@ async def on_mark_attempt(message: Message) -> None:
         return
 
     await db.close_slot(player["id"], idx)
-    await message.answer(f"Клетка {coord} закрыта: «{slot['text']}» ✅")
+    updated_slots = await db.get_slots(player["id"])
+    await send_card_image(
+        message,
+        game,
+        updated_slots,
+        owner_view=True,
+        caption=f"Клетка {coord} закрыта: «{slot['text']}» ✅",
+    )
 
     others = [
         p for p in await db.get_players(game["id"]) if p["id"] != player["id"] and p["confirmed"]
@@ -460,8 +466,7 @@ async def on_mark_attempt(message: Message) -> None:
         f"🎯 {message.from_user.full_name} закрыл(а) клетку {coord} в игре «{game['title']}»: «{slot['text']}»",
     )
 
-    slots = await db.get_slots(player["id"])
-    closed_idx = {s["idx"] for s in slots if s["closed"]}
+    closed_idx = {s["idx"] for s in updated_slots if s["closed"]}
     result = game_logic.check_win(closed_idx, game["size"])
     line_won = bool(player["line_won"]) or (result["line"] and bool(game["win_line"]))
     full_won = bool(player["full_won"]) or (result["full"] and bool(game["win_full"]))
