@@ -20,8 +20,10 @@ from keyboards import (
     editcard_slots_keyboard,
     done_filling_inline_keyboard,
     games_pick_keyboard,
+    mute_notifications_keyboard,
     player_game_manage_keyboard,
     player_games_keyboard,
+    undo_mark_keyboard,
     yes_no_keyboard,
 )
 from menu import (
@@ -32,7 +34,6 @@ from menu import (
     BTN_LEADERBOARD,
     BTN_PLAYERS,
     BTN_SETTINGS,
-    BTN_UNDO,
     build_menu,
     editmode_menu,
 )
@@ -390,11 +391,15 @@ async def cmd_undo(message: Message) -> None:
     if idx is None:
         await message.answer("Нечего отменять.")
         return
+    await perform_undo(message, message.bot, message.from_user.full_name, player, game, idx)
+
+
+async def perform_undo(target: Message, bot, actor_name: str, player, game, idx: int) -> None:
     await db.reopen_slot(player["id"], idx)
     coord = game_logic.idx_to_coord(idx, game["size"])
     slots = await db.get_slots(player["id"])
     await send_card_image(
-        message,
+        target,
         game,
         slots,
         owner_view=True,
@@ -404,16 +409,33 @@ async def cmd_undo(message: Message) -> None:
     notif_entries = await db.pop_mark_notifications(player["id"], idx)
     for chat_id, message_id in notif_entries:
         try:
-            await message.bot.delete_message(chat_id, message_id)
+            await bot.delete_message(chat_id, message_id)
         except Exception:
             try:
-                await message.bot.send_message(
+                await bot.send_message(
                     chat_id,
-                    f"↩️ {message.from_user.full_name} отменил(а) отметку клетки {coord} "
-                    f"в игре «{game['title']}».",
+                    f"↩️ {actor_name} отменил(а) отметку клетки {coord} в игре «{game['title']}».",
                 )
             except Exception:
                 logger.warning("Failed to notify %s about undo", chat_id, exc_info=True)
+
+
+@router.callback_query(F.data.startswith("undomark:"))
+async def cb_undo_mark(callback: CallbackQuery) -> None:
+    _, player_id_s, idx_s = callback.data.split(":")
+    player_id, idx = int(player_id_s), int(idx_s)
+    player = await db.get_player_by_id(player_id)
+    if not player or player["user_id"] != callback.from_user.id:
+        await callback.answer("Это не твоя карточка.", show_alert=True)
+        return
+    slot = await db.get_slot(player_id, idx)
+    if not slot["closed"]:
+        await callback.answer("Клетка уже не закрыта.", show_alert=True)
+        return
+    game = await db.get_game(player["game_id"])
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await perform_undo(callback.message, callback.bot, callback.from_user.full_name, player, game, idx)
+    await callback.answer()
 
 
 @router.message(F.text == BTN_CARD)
@@ -432,12 +454,6 @@ async def on_btn_players(message: Message, state: FSMContext) -> None:
 async def on_btn_leaderboard(message: Message, state: FSMContext) -> None:
     await state.clear()
     await cmd_leaderboard(message)
-
-
-@router.message(F.text == BTN_UNDO)
-async def on_btn_undo(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await cmd_undo(message)
 
 
 @router.message(F.text == BTN_SETTINGS)
@@ -476,10 +492,13 @@ async def on_mark_attempt(message: Message) -> None:
         updated_slots,
         owner_view=True,
         caption=f"Клетка {coord} закрыта: «{slot['text']}» ✅",
+        reply_markup=undo_mark_keyboard(player["id"], idx),
     )
 
     others = [
-        p for p in await db.get_players(game["id"]) if p["id"] != player["id"] and p["confirmed"]
+        p
+        for p in await db.get_players(game["id"])
+        if p["id"] != player["id"] and p["confirmed"] and not p["notify_muted"]
     ]
     notif_text = (
         f"🎯 {message.from_user.full_name} закрыл(а) клетку {coord} в игре «{game['title']}»: «{slot['text']}»"
@@ -487,7 +506,9 @@ async def on_mark_attempt(message: Message) -> None:
     notif_entries = []
     for p in others:
         try:
-            sent_msg = await message.bot.send_message(p["user_id"], notif_text)
+            sent_msg = await message.bot.send_message(
+                p["user_id"], notif_text, reply_markup=mute_notifications_keyboard(game["id"])
+            )
             notif_entries.append((p["user_id"], sent_msg.message_id))
         except Exception:
             logger.warning("Failed to notify %s about mark", p["user_id"], exc_info=True)
@@ -509,6 +530,38 @@ async def on_mark_attempt(message: Message) -> None:
         win_text = f"🏆 {message.from_user.full_name} {' и '.join(kind)} в игре «{game['title']}»!"
         all_ids = [p["user_id"] for p in await db.get_players(game["id"]) if p["confirmed"]]
         await broadcast(message.bot, all_ids, win_text)
+
+
+@router.callback_query(F.data.startswith("mutenotif:"))
+async def cb_mute_notifications(callback: CallbackQuery) -> None:
+    game_id = int(callback.data.split(":")[1])
+    player = await db.get_player(game_id, callback.from_user.id)
+    if not player:
+        await callback.answer("Ты не в этой игре.", show_alert=True)
+        return
+    await db.set_notify_muted(player["id"], True)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer(
+        "Больше не будем присылать уведомления о клетках в этой игре. "
+        "Включить обратно можно в /settings.",
+        show_alert=True,
+    )
+
+
+@router.callback_query(F.data.startswith("togglemute:"))
+async def cb_toggle_mute(callback: CallbackQuery) -> None:
+    game_id = int(callback.data.split(":")[1])
+    player = await db.get_player(game_id, callback.from_user.id)
+    if not player:
+        await callback.answer("Ты не в этой игре.", show_alert=True)
+        return
+    new_muted = not player["notify_muted"]
+    await db.set_notify_muted(player["id"], new_muted)
+    current_id = await db.get_current_game_id(callback.from_user.id)
+    await callback.message.edit_reply_markup(
+        reply_markup=player_game_manage_keyboard(game_id, current_id == game_id, new_muted)
+    )
+    await callback.answer("Уведомления заглушены." if new_muted else "Уведомления включены.")
 
 
 @router.callback_query(F.data.startswith("setcurrent:"))
@@ -554,7 +607,7 @@ async def cb_playergame(callback: CallbackQuery) -> None:
     status_text = "подтверждена ✅" if player["confirmed"] else "ещё заполняется"
     await callback.message.edit_text(
         f"«{game['title']}» — статус игры: {game['status']}, твоя карточка: {status_text}",
-        reply_markup=player_game_manage_keyboard(game_id, is_current),
+        reply_markup=player_game_manage_keyboard(game_id, is_current, bool(player["notify_muted"])),
     )
     await callback.answer()
 

@@ -37,6 +37,22 @@ def edit_slot_cancel_keyboard(player_id: int, idx: int) -> InlineKeyboardMarkup:
     )
 
 
+def mute_notifications_keyboard(game_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔕 Заглушить уведомления", callback_data=f"mutenotif:{game_id}")]
+        ]
+    )
+
+
+def undo_mark_keyboard(player_id: int, idx: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Отменить эту отметку", callback_data=f"undomark:{player_id}:{idx}")]
+        ]
+    )
+
+
 def games_pick_keyboard(games) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text=g["title"], callback_data=f"setcurrent:{g['id']}")] for g in games]
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -50,12 +66,14 @@ def player_games_keyboard(games) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def player_game_manage_keyboard(game_id: int, is_current: bool) -> InlineKeyboardMarkup:
+def player_game_manage_keyboard(game_id: int, is_current: bool, notify_muted: bool) -> InlineKeyboardMarkup:
     rows = []
     if not is_current:
         rows.append(
             [InlineKeyboardButton(text="✅ Сделать текущей игрой", callback_data=f"setcurrent:{game_id}")]
         )
+    mute_label = "🔔 Включить уведомления" if notify_muted else "🔕 Заглушить уведомления"
+    rows.append([InlineKeyboardButton(text=mute_label, callback_data=f"togglemute:{game_id}")])
     rows.append([InlineKeyboardButton(text="🚪 Покинуть игру", callback_data=f"leavegame_request:{game_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

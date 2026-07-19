@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS players (
     last_marked_slot_id INTEGER,
     line_won INTEGER NOT NULL DEFAULT 0,
     full_won INTEGER NOT NULL DEFAULT 0,
+    notify_muted INTEGER NOT NULL DEFAULT 0,
     joined_at TEXT NOT NULL,
     UNIQUE(game_id, user_id)
 );
@@ -67,6 +68,10 @@ async def init_db(path: str = DB_PATH) -> None:
     DB_PATH = path
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        cur = await db.execute("PRAGMA table_info(players)")
+        cols = [row[1] for row in await cur.fetchall()]
+        if "notify_muted" not in cols:
+            await db.execute("ALTER TABLE players ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         await db.commit()
 
 
@@ -163,6 +168,12 @@ async def get_players(game_id: int) -> list[aiosqlite.Row]:
 async def confirm_player(player_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET confirmed = 1 WHERE id = ?", (player_id,))
+        await db.commit()
+
+
+async def set_notify_muted(player_id: int, muted: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE players SET notify_muted = ? WHERE id = ?", (int(muted), player_id))
         await db.commit()
 
 

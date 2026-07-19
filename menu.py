@@ -7,7 +7,6 @@ BTN_MYGAMES = "🗂 Мои игры"
 BTN_CARD = "🎯 Моя карточка"
 BTN_PLAYERS = "👥 Игроки"
 BTN_LEADERBOARD = "🏆 Лидеры"
-BTN_UNDO = "↩️ Отменить отметку"
 BTN_SETTINGS = "⚙️ Настройки"
 BTN_EDITCARD = "✏️ Редактировать карточку"
 BTN_FINISH_EDITING = "✅ Завершить редактирование"
@@ -19,7 +18,6 @@ ALL_BUTTONS = {
     BTN_CARD,
     BTN_PLAYERS,
     BTN_LEADERBOARD,
-    BTN_UNDO,
     BTN_SETTINGS,
     BTN_EDITCARD,
     BTN_FINISH_EDITING,
@@ -46,7 +44,7 @@ async def build_menu(user_id: int) -> ReplyKeyboardMarkup:
     rows: list[list[str]] = []
     if active_games:
         rows.append([BTN_CARD, BTN_PLAYERS])
-        rows.append([BTN_LEADERBOARD, BTN_UNDO])
+        rows.append([BTN_LEADERBOARD])
     if draft_games:
         rows.append([BTN_EDITCARD])
     if active_games or draft_games:
