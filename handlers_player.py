@@ -20,7 +20,6 @@ from keyboards import (
     editcard_slots_keyboard,
     done_filling_inline_keyboard,
     games_pick_keyboard,
-    mute_notifications_keyboard,
     player_game_manage_keyboard,
     player_games_keyboard,
     undo_mark_keyboard,
@@ -506,9 +505,7 @@ async def on_mark_attempt(message: Message) -> None:
     notif_entries = []
     for p in others:
         try:
-            sent_msg = await message.bot.send_message(
-                p["user_id"], notif_text, reply_markup=mute_notifications_keyboard(game["id"])
-            )
+            sent_msg = await message.bot.send_message(p["user_id"], notif_text)
             notif_entries.append((p["user_id"], sent_msg.message_id))
         except Exception:
             logger.warning("Failed to notify %s about mark", p["user_id"], exc_info=True)
@@ -530,22 +527,6 @@ async def on_mark_attempt(message: Message) -> None:
         win_text = f"🏆 {message.from_user.full_name} {' и '.join(kind)} в игре «{game['title']}»!"
         all_ids = [p["user_id"] for p in await db.get_players(game["id"]) if p["confirmed"]]
         await broadcast(message.bot, all_ids, win_text)
-
-
-@router.callback_query(F.data.startswith("mutenotif:"))
-async def cb_mute_notifications(callback: CallbackQuery) -> None:
-    game_id = int(callback.data.split(":")[1])
-    player = await db.get_player(game_id, callback.from_user.id)
-    if not player:
-        await callback.answer("Ты не в этой игре.", show_alert=True)
-        return
-    await db.set_notify_muted(player["id"], True)
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer(
-        "Больше не будем присылать уведомления о клетках в этой игре. "
-        "Включить обратно можно в /settings.",
-        show_alert=True,
-    )
 
 
 @router.callback_query(F.data.startswith("togglemute:"))

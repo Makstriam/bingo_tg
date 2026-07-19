@@ -44,10 +44,11 @@ async def build_menu(user_id: int) -> ReplyKeyboardMarkup:
     rows: list[list[str]] = []
     if active_games:
         rows.append([BTN_CARD, BTN_PLAYERS])
-        rows.append([BTN_LEADERBOARD])
-    if draft_games:
+        rows.append([BTN_LEADERBOARD, BTN_SETTINGS])
+        if draft_games:
+            rows.append([BTN_EDITCARD])
+    elif draft_games:
         rows.append([BTN_EDITCARD])
-    if active_games or draft_games:
         rows.append([BTN_SETTINGS])
     if organizer_games:
         rows.append([BTN_MYGAMES])

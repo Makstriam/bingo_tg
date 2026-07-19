@@ -37,14 +37,6 @@ def edit_slot_cancel_keyboard(player_id: int, idx: int) -> InlineKeyboardMarkup:
     )
 
 
-def mute_notifications_keyboard(game_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🔕 Заглушить уведомления", callback_data=f"mutenotif:{game_id}")]
-        ]
-    )
-
-
 def undo_mark_keyboard(player_id: int, idx: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
