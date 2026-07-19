@@ -401,6 +401,20 @@ async def cmd_undo(message: Message) -> None:
         caption=f"Отметка клетки {coord} отменена.",
     )
 
+    notif_entries = await db.pop_mark_notifications(player["id"], idx)
+    for chat_id, message_id in notif_entries:
+        try:
+            await message.bot.delete_message(chat_id, message_id)
+        except Exception:
+            try:
+                await message.bot.send_message(
+                    chat_id,
+                    f"↩️ {message.from_user.full_name} отменил(а) отметку клетки {coord} "
+                    f"в игре «{game['title']}».",
+                )
+            except Exception:
+                logger.warning("Failed to notify %s about undo", chat_id, exc_info=True)
+
 
 @router.message(F.text == BTN_CARD)
 async def on_btn_card(message: Message, state: FSMContext) -> None:
@@ -467,11 +481,17 @@ async def on_mark_attempt(message: Message) -> None:
     others = [
         p for p in await db.get_players(game["id"]) if p["id"] != player["id"] and p["confirmed"]
     ]
-    await broadcast(
-        message.bot,
-        [p["user_id"] for p in others],
-        f"🎯 {message.from_user.full_name} закрыл(а) клетку {coord} в игре «{game['title']}»: «{slot['text']}»",
+    notif_text = (
+        f"🎯 {message.from_user.full_name} закрыл(а) клетку {coord} в игре «{game['title']}»: «{slot['text']}»"
     )
+    notif_entries = []
+    for p in others:
+        try:
+            sent_msg = await message.bot.send_message(p["user_id"], notif_text)
+            notif_entries.append((p["user_id"], sent_msg.message_id))
+        except Exception:
+            logger.warning("Failed to notify %s about mark", p["user_id"], exc_info=True)
+    await db.save_mark_notifications(player["id"], idx, notif_entries)
 
     closed_idx = {s["idx"] for s in updated_slots if s["closed"]}
     result = game_logic.check_win(closed_idx, game["size"])

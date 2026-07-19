@@ -47,6 +47,14 @@ CREATE TABLE IF NOT EXISTS user_prefs (
     user_id INTEGER PRIMARY KEY,
     current_game_id INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS mark_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER NOT NULL,
+    idx INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL
+);
 """
 
 
@@ -337,3 +345,28 @@ async def get_last_marked_idx(player_id: int) -> Optional[int]:
         )
         row = await cur.fetchone()
         return row["idx"] if row else None
+
+
+async def save_mark_notifications(player_id: int, idx: int, entries: list[tuple[int, int]]) -> None:
+    if not entries:
+        return
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.executemany(
+            "INSERT INTO mark_notifications (player_id, idx, chat_id, message_id) VALUES (?, ?, ?, ?)",
+            [(player_id, idx, chat_id, message_id) for chat_id, message_id in entries],
+        )
+        await db.commit()
+
+
+async def pop_mark_notifications(player_id: int, idx: int) -> list[tuple[int, int]]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT chat_id, message_id FROM mark_notifications WHERE player_id = ? AND idx = ?",
+            (player_id, idx),
+        )
+        rows = await cur.fetchall()
+        await db.execute(
+            "DELETE FROM mark_notifications WHERE player_id = ? AND idx = ?", (player_id, idx)
+        )
+        await db.commit()
+        return [(row[0], row[1]) for row in rows]
