@@ -15,6 +15,7 @@ from aiogram.types import (
 import card_image
 import db
 import game_logic
+import word_pool
 from keyboards import (
     card_confirm_keyboard,
     draft_games_pick_keyboard,
@@ -235,7 +236,7 @@ async def cmd_done_filling(message: Message, state: FSMContext) -> None:
         await message.answer("Карточка уже полностью заполнена.", reply_markup=card_confirm_keyboard())
         return
     await message.answer(
-        f"Не заполнено ещё {remaining} клеток. Заполнить их пустышками (—) и подтвердить карточку?",
+        f"Не заполнено ещё {remaining} клеток. Заполнить их случайными вариантами из списка и подтвердить карточку?",
         reply_markup=yes_no_keyboard("filldone", str(player_id)),
     )
 
@@ -251,11 +252,18 @@ async def cb_filldone(callback: CallbackQuery) -> None:
         await ask_next_slot(callback.message, player_id, game)
         await callback.answer()
         return
-    for idx in range(player["fill_index"], game["size"]):
-        await db.set_slot_text(player_id, idx, "—")
+    existing_texts = {s["text"] for s in await db.get_slots(player_id) if s["text"]}
+    remaining = game["size"] - player["fill_index"]
+    candidates = [w for w in word_pool.DEFAULT_POOL if w not in existing_texts]
+    if len(candidates) < remaining:
+        candidates = word_pool.DEFAULT_POOL
+    fillers = random.sample(candidates, remaining)
+    for idx, text in zip(range(player["fill_index"], game["size"]), fillers):
+        await db.set_slot_text(player_id, idx, text)
     await db.set_fill_index(player_id, game["size"])
     await callback.message.edit_text(
-        "Пустые клетки заполнены. Подтверди карточку.", reply_markup=card_confirm_keyboard()
+        "Пустые клетки заполнены случайными вариантами. Подтверди карточку.",
+        reply_markup=card_confirm_keyboard(),
     )
     await callback.answer()
 
@@ -277,7 +285,7 @@ async def cb_done_filling_request(callback: CallbackQuery, state: FSMContext) ->
         await callback.answer()
         return
     await callback.message.edit_text(
-        f"Не заполнено ещё {remaining} клеток. Заполнить их пустышками (—) и подтвердить карточку?",
+        f"Не заполнено ещё {remaining} клеток. Заполнить их случайными вариантами из списка и подтвердить карточку?",
         reply_markup=yes_no_keyboard("filldone", str(player_id)),
     )
     await callback.answer()
