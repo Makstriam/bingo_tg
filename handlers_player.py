@@ -17,6 +17,7 @@ import db
 import game_logic
 from keyboards import (
     card_confirm_keyboard,
+    draft_games_pick_keyboard,
     edit_slot_cancel_keyboard,
     editcard_slots_keyboard,
     done_filling_inline_keyboard,
@@ -146,8 +147,8 @@ async def resolve_draft_game_for_edit(message: Message, silent_if_empty: bool = 
     if match:
         return match
     await message.answer(
-        "У тебя несколько игр в подготовке — выбери, какую карточку редактировать, и повтори команду:",
-        reply_markup=games_pick_keyboard(games),
+        "У тебя несколько игр в подготовке — выбери, какую карточку редактировать:",
+        reply_markup=draft_games_pick_keyboard(games),
     )
     return None
 
@@ -697,12 +698,33 @@ async def cmd_editcard(message: Message) -> None:
     if not player:
         await message.answer("Ты не участвуешь в этой игре.")
         return
-    slots = await db.get_slots(player["id"])
-    await message.answer("Режим редактирования карточки.", reply_markup=editmode_menu())
-    await message.answer(
+    await show_edit_slots(message, game, player["id"])
+
+
+async def show_edit_slots(target: Message, game, player_id: int) -> None:
+    slots = await db.get_slots(player_id)
+    await target.answer("Режим редактирования карточки.", reply_markup=editmode_menu())
+    await target.answer(
         f"Какой слот отредактировать в «{game['title']}»?",
-        reply_markup=editcard_slots_keyboard(player["id"], slots),
+        reply_markup=editcard_slots_keyboard(player_id, slots),
     )
+
+
+@router.callback_query(F.data.startswith("editcard_pick:"))
+async def cb_editcard_pick(callback: CallbackQuery) -> None:
+    game_id = int(callback.data.split(":")[1])
+    game = await db.get_game(game_id)
+    if not game:
+        await callback.answer("Игра не найдена.", show_alert=True)
+        return
+    player = await db.get_player(game_id, callback.from_user.id)
+    if not player:
+        await callback.answer("Ты не в этой игре.", show_alert=True)
+        return
+    await db.set_current_draft_game_id(callback.from_user.id, game_id)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await show_edit_slots(callback.message, game, player["id"])
+    await callback.answer()
 
 
 @router.message(F.text == BTN_FINISH_EDITING)

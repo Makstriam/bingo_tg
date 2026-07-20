@@ -68,6 +68,11 @@ def games_pick_keyboard(games) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def draft_games_pick_keyboard(games) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text=g["title"], callback_data=f"editcard_pick:{g['id']}")] for g in games]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def player_games_keyboard(games) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text=f"{g['title']} ({g['status']})", callback_data=f"playergame:{g['id']}")]
