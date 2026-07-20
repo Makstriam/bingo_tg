@@ -133,11 +133,7 @@ async def resolve_current_game(message: Message, silent_if_empty: bool = False):
 
 
 async def resolve_draft_game_for_edit(message: Message, silent_if_empty: bool = False):
-    games = [
-        g
-        for g in await db.get_player_games_for_user(message.from_user.id)
-        if g["status"] == "draft" and g["mode"] == "manual"
-    ]
+    games = [g for g in await db.get_player_games_for_user(message.from_user.id) if g["status"] == "draft"]
     if not games:
         if not silent_if_empty:
             await message.answer("Нет игр в статусе подготовки, где можно редактировать карточку.")

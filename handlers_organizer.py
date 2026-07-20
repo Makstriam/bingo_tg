@@ -248,17 +248,13 @@ async def cb_returncard(callback: CallbackQuery, state: FSMContext) -> None:
         await ask_next_slot(callback.message, player["id"], game)
     else:
         slots = await db.get_slots(player["id"])
-        note = (
-            "Изменить можно кнопкой «✏️ Редактировать карточку» в меню снизу."
-            if game["mode"] == "manual"
-            else "Карточка случайная и фиксированная — редактировать её нельзя."
-        )
         await send_card_image(
             callback.message,
             game,
             slots,
             owner_view=True,
-            caption=f"Твоя карточка в игре «{game['title']}»\n{note}",
+            caption=f"Твоя карточка в игре «{game['title']}»\n"
+            "Изменить можно кнопкой «✏️ Редактировать карточку» в меню снизу.",
             reply_markup=await build_menu(callback.from_user.id),
         )
     await callback.answer()

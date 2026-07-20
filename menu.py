@@ -39,18 +39,16 @@ async def build_menu(user_id: int) -> ReplyKeyboardMarkup:
     active_games = await db.get_active_games_for_user(user_id)
     player_games = await db.get_player_games_for_user(user_id)
     draft_games = [g for g in player_games if g["status"] == "draft"]
-    editable_draft_games = [g for g in draft_games if g["mode"] == "manual"]
     organizer_games = await db.get_games_by_organizer(user_id)
 
     rows: list[list[str]] = []
     if active_games:
         rows.append([BTN_CARD, BTN_PLAYERS])
         rows.append([BTN_LEADERBOARD, BTN_SETTINGS])
-        if editable_draft_games:
+        if draft_games:
             rows.append([BTN_EDITCARD])
     elif draft_games:
-        if editable_draft_games:
-            rows.append([BTN_EDITCARD])
+        rows.append([BTN_EDITCARD])
         rows.append([BTN_SETTINGS])
     if organizer_games:
         rows.append([BTN_MYGAMES])
