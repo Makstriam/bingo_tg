@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS slots (
 
 CREATE TABLE IF NOT EXISTS user_prefs (
     user_id INTEGER PRIMARY KEY,
-    current_game_id INTEGER
+    current_game_id INTEGER,
+    current_draft_game_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS mark_notifications (
@@ -81,6 +82,11 @@ async def init_db(path: str = DB_PATH) -> None:
             await db.execute("ALTER TABLE games ADD COLUMN mode TEXT NOT NULL DEFAULT 'manual'")
         if "word_pool" not in game_cols:
             await db.execute("ALTER TABLE games ADD COLUMN word_pool TEXT")
+
+        cur = await db.execute("PRAGMA table_info(user_prefs)")
+        prefs_cols = [row[1] for row in await cur.fetchall()]
+        if "current_draft_game_id" not in prefs_cols:
+            await db.execute("ALTER TABLE user_prefs ADD COLUMN current_draft_game_id INTEGER")
 
         await db.commit()
 
@@ -279,6 +285,30 @@ async def clear_current_game_id_if_matches(user_id: int, game_id: int) -> None:
             "UPDATE user_prefs SET current_game_id = NULL WHERE user_id = ? AND current_game_id = ?",
             (user_id, game_id),
         )
+        await db.execute(
+            "UPDATE user_prefs SET current_draft_game_id = NULL "
+            "WHERE user_id = ? AND current_draft_game_id = ?",
+            (user_id, game_id),
+        )
+        await db.commit()
+
+
+async def get_current_draft_game_id(user_id: int) -> Optional[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT current_draft_game_id FROM user_prefs WHERE user_id = ?", (user_id,)
+        )
+        row = await cur.fetchone()
+        return row[0] if row else None
+
+
+async def set_current_draft_game_id(user_id: int, game_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO user_prefs (user_id, current_draft_game_id) VALUES (?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET current_draft_game_id = excluded.current_draft_game_id",
+            (user_id, game_id),
+        )
         await db.commit()
 
 
@@ -366,6 +396,10 @@ async def delete_game(game_id: int) -> None:
         await db.execute("DELETE FROM games WHERE id = ?", (game_id,))
         await db.execute(
             "UPDATE user_prefs SET current_game_id = NULL WHERE current_game_id = ?", (game_id,)
+        )
+        await db.execute(
+            "UPDATE user_prefs SET current_draft_game_id = NULL WHERE current_draft_game_id = ?",
+            (game_id,),
         )
         await db.commit()
 

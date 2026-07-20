@@ -139,8 +139,9 @@ async def resolve_draft_game_for_edit(message: Message, silent_if_empty: bool = 
             await message.answer("Нет игр в статусе подготовки, где можно редактировать карточку.")
         return None
     if len(games) == 1:
+        await db.set_current_draft_game_id(message.from_user.id, games[0]["id"])
         return games[0]
-    current_id = await db.get_current_game_id(message.from_user.id)
+    current_id = await db.get_current_draft_game_id(message.from_user.id)
     match = next((g for g in games if g["id"] == current_id), None)
     if match:
         return match
@@ -585,7 +586,10 @@ async def cb_setcurrent(callback: CallbackQuery) -> None:
     if not game:
         await callback.answer("Игра не найдена.", show_alert=True)
         return
-    await db.set_current_game_id(callback.from_user.id, game_id)
+    if game["status"] == "draft":
+        await db.set_current_draft_game_id(callback.from_user.id, game_id)
+    else:
+        await db.set_current_game_id(callback.from_user.id, game_id)
     await callback.message.edit_text(f"Текущая игра: «{game['title']}». Повтори свою команду.")
     await callback.answer()
 
@@ -596,9 +600,11 @@ async def cmd_settings(message: Message) -> None:
     if not games:
         await message.answer("Ты пока не участвуешь ни в одной игре.")
         return
-    current_id = await db.get_current_game_id(message.from_user.id)
+    current_active_id = await db.get_current_game_id(message.from_user.id)
+    current_draft_id = await db.get_current_draft_game_id(message.from_user.id)
     lines = ["Твои игры:"]
     for g in games:
+        current_id = current_draft_id if g["status"] == "draft" else current_active_id
         marker = " ← текущая" if g["id"] == current_id else ""
         lines.append(f"• {g['title']} ({g['status']}){marker}")
     lines.append("\nВыбери игру, чтобы сделать её текущей или покинуть:")
@@ -616,7 +622,10 @@ async def cb_playergame(callback: CallbackQuery) -> None:
     if not player:
         await callback.answer("Ты не в этой игре.", show_alert=True)
         return
-    current_id = await db.get_current_game_id(callback.from_user.id)
+    if game["status"] == "draft":
+        current_id = await db.get_current_draft_game_id(callback.from_user.id)
+    else:
+        current_id = await db.get_current_game_id(callback.from_user.id)
     is_current = current_id == game_id
     status_text = "подтверждена ✅" if player["confirmed"] else "ещё заполняется"
     await callback.message.edit_text(
