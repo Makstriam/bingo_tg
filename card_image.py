@@ -21,7 +21,10 @@ CELL_LOCKED_BG = (222, 222, 222)
 TEXT_COLOR = (20, 20, 20)
 CLOSED_TEXT_COLOR = (25, 100, 25)
 
+_BUNDLED_FONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "DejaVuSans.ttf")
+
 _FONT_CANDIDATES = [
+    _BUNDLED_FONT,
     r"C:\Windows\Fonts\segoeui.ttf",
     r"C:\Windows\Fonts\arial.ttf",
     r"C:\Windows\Fonts\tahoma.ttf",
