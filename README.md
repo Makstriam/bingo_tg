@@ -1,40 +1,40 @@
 # Bingo Bot
 
-Telegram-бот для игры в «бинго-предсказания»: организатор создаёт игру, участники
-либо сами придумывают 25 (4/9/16) утверждений на карточку, либо получают карточку,
-случайно собранную из общего списка фраз. Клетки закрываются по мере того, как
-предсказание сбывается, победа — за первым, кто закроет всю карточку.
+A Telegram bot for playing "prediction bingo": the organizer creates a game,
+and participants either write their own 25 (or 4/9/16) predictions on a card
+or get one randomly assembled from a shared phrase pool. Cells get marked off
+as predictions come true; the first player to fill their whole card wins.
 
 <p align="center">
-  <img src="docs/example_card.png" width="420" alt="Пример карточки бинго">
+  <img src="docs/example_card.png" width="420" alt="Example bingo card">
 </p>
 
-## Возможности
+## Features
 
-- **Два режима заполнения карточки**: вручную (каждый пишет свои фразы) или
-  случайно — карточки собираются из общего списка (файл/сообщение от организатора,
-  готовый пример на 10 фраз или встроенный список).
-- **Карточка как картинка** — рендерится через Pillow: сетка с координатами
-  A1…E5 (как в морском бое), закрытые клетки подсвечены, размер шрифта в каждой
-  клетке подбирается под длину текста.
-- **Анонимный режим** — текст ещё не закрытых чужих клеток скрыт до момента,
-  пока владелец сам не отметит её.
-- **Отметка клеток** номером или координатой (`5` или `B5`/`5B`), с отменой
-  последней отметки одной кнопкой.
-- **Несколько игр одновременно** — бот помнит, с какой активной и с какой
-  черновой игрой сейчас работает пользователь, не путая их между собой.
-- **Экспорт карточек в `.txt`** для завершённых/активных игр — тот же формат,
-  который можно переиспользовать как список фраз для случайного режима.
-- Устойчивость к повторным нажатиям на старые кнопки, автозаполнение карточек
-  отстающих игроков при принудительном старте, поканальные уведомления
-  организатору и участникам.
+- **Two card-filling modes**: manual (each player writes their own phrases) or
+  random — cards are assembled from a shared pool (a file/message from the
+  organizer, a 10-phrase example, or a built-in default list).
+- **Card rendered as an image** — drawn with Pillow: a grid with battleship-style
+  coordinates (A1…E5), closed cells highlighted, per-cell font size that scales
+  to fit the text.
+- **Anonymous mode** — other players' unmarked cell text stays hidden until the
+  owner marks it themselves.
+- **Marking cells** by number or coordinate (`5` or `B5`/`5B`), with one-tap
+  undo of the last mark.
+- **Multiple concurrent games** — the bot tracks which active game and which
+  draft game a user is currently working with, without mixing them up.
+- **Export cards to `.txt`** for active/finished games — the same format can be
+  fed back in as a phrase pool for the random mode.
+- Resilient to repeated taps on stale buttons, auto-fills lagging players'
+  cards on a forced start, and sends targeted notifications to organizers and
+  participants.
 
-## Стек
+## Stack
 
-Python 3.11+, [aiogram 3](https://docs.aiogram.dev/), aiosqlite (хранилище —
-файл SQLite), Pillow (рендер карточек), python-dotenv.
+Python 3.11+, [aiogram 3](https://docs.aiogram.dev/), aiosqlite (SQLite file
+storage), Pillow (card rendering), python-dotenv.
 
-## Запуск
+## Running locally
 
 ```bash
 git clone <this-repo>
@@ -43,16 +43,16 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-cp .env.example .env        # и впиши свой токен от @BotFather в BOT_TOKEN
+cp .env.example .env        # fill in your token from @BotFather in BOT_TOKEN
 python bot.py
 ```
 
-Токен бота получается у [@BotFather](https://t.me/BotFather) командой `/newbot`.
-Бот работает через polling — публичный HTTPS-адрес не требуется, достаточно
-исходящего доступа в интернет.
+Get a bot token from [@BotFather](https://t.me/BotFather) with `/newbot`.
+The bot uses long polling, so no public HTTPS endpoint is required — just
+outbound internet access.
 
-## Деплой
+## Deployment
 
-В [`deploy/bingo-bot.service`](deploy/bingo-bot.service) — шаблон systemd-юнита
-для запуска бота как сервиса на Linux-сервере (проверено на Ubuntu, Oracle Cloud
-Always Free).
+[`deploy/bingo-bot.service`](deploy/bingo-bot.service) is a systemd unit
+template for running the bot as a service on a Linux server (tested on Oracle
+Linux 9, Oracle Cloud Always Free).
