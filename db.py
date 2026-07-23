@@ -392,6 +392,7 @@ async def delete_game(game_id: int) -> None:
         player_ids = [row[0] for row in await cur.fetchall()]
         for player_id in player_ids:
             await db.execute("DELETE FROM slots WHERE player_id = ?", (player_id,))
+            await db.execute("DELETE FROM mark_notifications WHERE player_id = ?", (player_id,))
         await db.execute("DELETE FROM players WHERE game_id = ?", (game_id,))
         await db.execute("DELETE FROM games WHERE id = ?", (game_id,))
         await db.execute(
@@ -438,3 +439,12 @@ async def pop_mark_notifications(player_id: int, idx: int) -> list[tuple[int, in
         )
         await db.commit()
         return [(row[0], row[1]) for row in rows]
+
+
+async def clear_mark_notifications_for_game(game_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT id FROM players WHERE game_id = ?", (game_id,))
+        player_ids = [row[0] for row in await cur.fetchall()]
+        for player_id in player_ids:
+            await db.execute("DELETE FROM mark_notifications WHERE player_id = ?", (player_id,))
+        await db.commit()

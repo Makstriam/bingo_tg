@@ -425,6 +425,7 @@ async def cb_confirm_end(callback: CallbackQuery) -> None:
         await callback.answer()
         return
     await db.set_game_status(game_id, "finished")
+    await db.clear_mark_notifications_for_game(game_id)
     players = [p for p in await db.get_players(game_id) if p["confirmed"]]
     standings = []
     for p in players:
