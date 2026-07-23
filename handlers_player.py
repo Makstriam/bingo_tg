@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 
@@ -49,7 +50,7 @@ router = Router()
 
 async def send_card_image(target: Message, game, slots, owner_view: bool, caption: str, reply_markup=None) -> None:
     try:
-        photo_bytes = card_image.render_card_image(game, slots, owner_view)
+        photo_bytes = await asyncio.to_thread(card_image.render_card_image, game, slots, owner_view)
         photo = BufferedInputFile(photo_bytes, filename="card.png")
         await target.answer_photo(photo, caption=caption, reply_markup=reply_markup)
     except Exception:
@@ -545,13 +546,16 @@ async def on_mark_attempt(message: Message) -> None:
     notif_text = (
         f"🎯 {message.from_user.full_name} закрыл(а) клетку {coord} в игре «{game['title']}»: «{slot['text']}»"
     )
-    notif_entries = []
-    for p in others:
+    async def notify_one(p):
         try:
             sent_msg = await message.bot.send_message(p["user_id"], notif_text)
-            notif_entries.append((p["user_id"], sent_msg.message_id))
+            return (p["user_id"], sent_msg.message_id)
         except Exception:
             logger.warning("Failed to notify %s about mark", p["user_id"], exc_info=True)
+            return None
+
+    results = await asyncio.gather(*(notify_one(p) for p in others))
+    notif_entries = [r for r in results if r is not None]
     await db.save_mark_notifications(player["id"], idx, notif_entries)
 
     closed_idx = {s["idx"] for s in updated_slots if s["closed"]}

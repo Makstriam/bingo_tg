@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import io
 import logging
 import os
@@ -58,6 +59,7 @@ def _find_font_path() -> str | None:
     return None
 
 
+@functools.lru_cache(maxsize=64)
 def _font(size: int) -> ImageFont.ImageFont:
     path = _find_font_path()
     if path:
