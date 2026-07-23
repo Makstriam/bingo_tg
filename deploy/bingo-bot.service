@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/bingo
-ExecStart=/home/ubuntu/bingo/.venv/bin/python /home/ubuntu/bingo/bot.py
+User=opc
+WorkingDirectory=/home/opc/bingo
+ExecStart=/home/opc/bingo/.venv/bin/python /home/opc/bingo/bot.py
 Restart=on-failure
 RestartSec=5
 
