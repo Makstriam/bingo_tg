@@ -55,4 +55,5 @@ outbound internet access.
 
 [`deploy/bingo-bot.service`](deploy/bingo-bot.service) is a systemd unit
 template for running the bot as a service on a Linux server (tested on Oracle
-Linux 9, Oracle Cloud Always Free).
+Linux 9, Oracle Cloud Always Free). [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md)
+covers day-to-day operations and troubleshooting.
