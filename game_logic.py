@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 
 COLUMN_LETTERS = "ABCDE"  # enough for max size 25 -> n=5
